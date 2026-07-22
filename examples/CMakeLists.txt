@@ -31,6 +31,13 @@ add_subdirectory(iec61850_client_example_rcbAsync)
 add_subdirectory(iec61850_client_example_ClientGooseControl)
 add_subdirectory(iec61850_client_example_ClientGooseControlAsync)
 
+add_subdirectory(PEX_IEDR550_client_example_1)
+add_subdirectory(PEX_IEDR550_client_example_2)
+add_subdirectory(PEX_IEDR550_client_example_3)
+add_subdirectory(PEX_IEDR550_client_example_4)
+add_subdirectory(PEX_IEDR550_server)
+add_subdirectory(PEX_IEDR550_server_new_model)
+
 if (${BUILD_SNTP_CLIENT_EXAMPLES})
 add_subdirectory(sntp_example)
 endif()

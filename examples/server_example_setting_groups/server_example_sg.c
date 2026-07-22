@@ -108,7 +108,7 @@ readAccessHandler(LogicalDevice* ld, LogicalNode* ln, DataObject* dataObject, Fu
 int 
 main(int argc, char** argv)
 {
-    int tcpPort = 102;
+    int tcpPort = 8102;
 
     if (argc > 1) {
         tcpPort = atoi(argv[1]);

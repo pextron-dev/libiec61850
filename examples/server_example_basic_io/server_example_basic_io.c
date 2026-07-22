@@ -101,7 +101,7 @@ rcbEventHandler(void* parameter, ReportControlBlock* rcb, ClientConnection conne
 int
 main(int argc, char** argv)
 {
-    int tcpPort = 102;
+    int tcpPort = 8102;
 
     if (argc > 1) {
         tcpPort = atoi(argv[1]);

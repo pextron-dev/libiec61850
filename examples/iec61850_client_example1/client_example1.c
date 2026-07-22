@@ -32,7 +32,7 @@ reportCallbackFunction(void* parameter, ClientReport report)
 int main(int argc, char** argv) {
 
     char* hostname;
-    int tcpPort = 102;
+    int tcpPort = 8102;
     const char* localIp = NULL;
     int localTcpPort = -1;
     

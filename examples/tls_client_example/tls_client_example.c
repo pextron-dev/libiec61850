@@ -57,12 +57,12 @@ int main(int argc, char** argv) {
 
     TLSConfiguration_setEventHandler(tlsConfig, securityEventHandler, NULL);
 
-    if (!TLSConfiguration_setOwnKeyFromFile(tlsConfig, "client.key", NULL)) {
+    if (!TLSConfiguration_setOwnKeyFromFile(tlsConfig, "client_CA1_1.key", NULL)) {
         printf("ERROR: Failed to load private key!\n");
         return 0;
     }
 
-    if (!TLSConfiguration_setOwnCertificateFromFile(tlsConfig, "client.crt")) {
+    if (!TLSConfiguration_setOwnCertificateFromFile(tlsConfig, "client_CA1_1.pem")) {
         printf("ERROR: Failed to load own certificate!\n");
         return 0;
     }

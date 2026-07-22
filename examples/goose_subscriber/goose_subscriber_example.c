@@ -11,9 +11,9 @@
 #include "hal_thread.h"
 #include "linked_list.h"
 
-#include <stdlib.h>
-#include <stdio.h>
 #include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 static int running = 1;
 
@@ -27,13 +27,12 @@ static void
 gooseListener(GooseSubscriber subscriber, void* parameter)
 {
     printf("GOOSE event:\n");
-    printf("  stNum: %u sqNum: %u\n", GooseSubscriber_getStNum(subscriber),
-            GooseSubscriber_getSqNum(subscriber));
+    printf("  stNum: %u sqNum: %u\n", GooseSubscriber_getStNum(subscriber), GooseSubscriber_getSqNum(subscriber));
     printf("  timeToLive: %u\n", GooseSubscriber_getTimeAllowedToLive(subscriber));
 
     uint64_t timestamp = GooseSubscriber_getTimestamp(subscriber);
 
-    printf("  timestamp: %u.%u\n", (uint32_t) (timestamp / 1000), (uint32_t) (timestamp % 1000));
+    printf("  timestamp: %u.%u\n", (uint32_t)(timestamp / 1000), (uint32_t)(timestamp % 1000));
     printf("  message is %s\n", GooseSubscriber_isValid(subscriber) ? "valid" : "INVALID");
 
     MmsValue* values = GooseSubscriber_getDataSetValues(subscriber);
@@ -50,18 +49,25 @@ main(int argc, char** argv)
 {
     GooseReceiver receiver = GooseReceiver_create();
 
-    if (argc > 1) {
-        printf("Set interface id: %s\n", argv[1]);
-        GooseReceiver_setInterfaceId(receiver, argv[1]);
-    }
-    else {
-        printf("Using interface eth0\n");
-        GooseReceiver_setInterfaceId(receiver, "eth0");
-    }
+    // if (argc > 1)
+    //{
+    //     printf("Set interface id: %s\n", argv[1]);
+    //     GooseReceiver_setInterfaceId(receiver, argv[1]);
+    // }
+    // else
+    //{
+    //     printf("Using interface 8\n");
+    //     GooseReceiver_setInterfaceId(receiver, "9");
+    // }
+
+    char* ethernetIfcID = "8";
+
+    GooseReceiver_setInterfaceId(receiver, ethernetIfcID);
 
     GooseSubscriber subscriber = GooseSubscriber_create("simpleIOGenericIO/LLN0$GO$gcbAnalogValues", NULL);
 
-    uint8_t dstMac[6] = {0x01,0x0c,0xcd,0x01,0x00,0x01};
+    uint8_t dstMac[6] = {0x01, 0x0c, 0xcd, 0x01, 0x00, 0x01};
+    // uint8_t dstMac[6] = {0x80, 0x34, 0x28, 0x2a, 0x20, 0xA9};
     GooseSubscriber_setDstMac(subscriber, dstMac);
     GooseSubscriber_setAppId(subscriber, 1000);
 
@@ -71,15 +77,19 @@ main(int argc, char** argv)
 
     GooseReceiver_start(receiver);
 
-    if (GooseReceiver_isRunning(receiver)) {
+    if (GooseReceiver_isRunning(receiver))
+    {
         signal(SIGINT, sigint_handler);
 
-        while (running) {
+        while (running)
+        {
             Thread_sleep(100);
         }
     }
-    else {
-        printf("Failed to start GOOSE subscriber. Reason can be that the Ethernet interface doesn't exist or root permission are required.\n");
+    else
+    {
+        printf("Failed to start GOOSE subscriber. Reason can be that the Ethernet interface doesn't exist or root "
+               "permission are required.\n");
     }
 
     GooseReceiver_stop(receiver);

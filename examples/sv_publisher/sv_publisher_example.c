@@ -26,6 +26,8 @@ main(int argc, char** argv)
     else
         interface = "eth0";
   
+    interface = "8";
+
     printf("Using interface %s\n", interface);
 
     signal(SIGINT, sigint_handler);

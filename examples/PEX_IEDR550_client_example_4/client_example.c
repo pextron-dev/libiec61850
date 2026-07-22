@@ -1,25 +1,27 @@
 /*
-* client_example_ClientGooseControl.c
-*
-* This example is intended to be used with server_example_basic_io or server_example_goose.
-*/
+ * client_example_ClientGooseControl.c
+ *
+ * This example is intended to be used with server_example_basic_io or server_example_goose.
+ */
 
 #include "iec61850_client.h"
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "hal_thread.h"
+#include "config.h"
 
-int main(int argc, char** argv)
+int
+main(int argc, char** argv)
 {
     char* hostname;
-    int tcpPort = 8102;
+    int tcpPort = 102;
 
     if (argc > 1)
         hostname = argv[1];
     else
-        hostname = "localhost";
+        hostname = IED_SERVER_IP;
 
     if (argc > 2)
         tcpPort = atoi(argv[2]);
@@ -27,16 +29,19 @@ int main(int argc, char** argv)
     IedClientError error;
     IedConnection con = IedConnection_create();
 
-
-    tcpPort = 102;
-    hostname = "192.168.2.64";
-
     IedConnection_connect(con, &error, hostname, tcpPort);
+
+    /* read data set */
+    ClientDataSet clientDataSet = IedConnection_readDataSetValues(con, &error, "S640/LLN0.GSE_DataSet", NULL);
 
     if (error == IED_ERROR_OK)
     {
         /*Read GoCB Values*/
-        ClientGooseControlBlock goCB = IedConnection_getGoCBValues(con, &error, "simpleIOGenericIO/LLN0.gcbEvents", NULL);
+        ClientGooseControlBlock goCB =
+            IedConnection_getGoCBValues(con, &error, "S640/LLN0.GOOSE GGIO", NULL);
+
+        if (!goCB)
+            goto close_connection;
 
         bool GoEna = ClientGooseControlBlock_getGoEna(goCB);
         printf("GoEna Value: %d\n", GoEna);
@@ -48,24 +53,20 @@ int main(int argc, char** argv)
         printf("GoDatset Value: %s\n", datset);
 
         /*Update Go CB Values locally*/
-        //ClientGooseControlBlock_setGoID(goCB, "analog");
-        //ClientGooseControlBlock_setDatSet(goCB, "simpleIOGenericIO/LLN0$AnalogValues"); 
-        ClientGooseControlBlock_setGoEna(goCB, false); 
-
-        //Thread_sleep(50);
+        ClientGooseControlBlock_setGoID(goCB, "analog");
+        ClientGooseControlBlock_setGoEna(goCB, false);
 
         /*Update Go CB Values to server (Throws error because only GoEna is writeable)*/
-        //IedConnection_setGoCBValues(con, &error, goCB, GOCB_ELEMENT_GO_ID | GOCB_ELEMENT_DATSET | GOCB_ELEMENT_GO_ENA, true);
-        IedConnection_setGoCBValues(con, &error, goCB, GOCB_ELEMENT_GO_ENA, true);
-
+        IedConnection_setGoCBValues(con, &error, goCB, GOCB_ELEMENT_GO_ID | GOCB_ELEMENT_GO_ENA, true);
 
         if (error != IED_ERROR_OK)
             printf("Fail to Set Values to Server (code: %i)\n", error);
-        else
-            printf("Succed to Set Values to Server (code: %i)\n", error);
 
         /*Test to see if the values were updated correctly on the server*/
-        goCB = IedConnection_getGoCBValues(con, &error, "simpleIOGenericIO/LLN0.gcbEvents", NULL);
+        goCB = IedConnection_getGoCBValues(con, &error, "S640/LLN0.GOOSE GGIO", NULL);
+
+        if (!goCB)
+            goto close_connection;
 
         bool GoEnaUpdate = ClientGooseControlBlock_getGoEna(goCB);
         printf("GoEna Value: %d\n", GoEnaUpdate);
@@ -78,15 +79,17 @@ int main(int argc, char** argv)
 
         printf("\n");
 
-        Thread_sleep(50000);
+        Thread_sleep(20000);
 
-close_connection:
+    close_connection:
         IedConnection_close(con);
-	}
-    else {
+    }
+    else
+    {
         printf("Failed to connect to %s:%i\n", hostname, tcpPort);
     }
 
+    ClientDataSet_destroy(clientDataSet);
     IedConnection_destroy(con);
 
     return 0;

@@ -65,7 +65,7 @@ controlHandlerForBinaryOutput(ControlAction action, void* parameter, MmsValue* v
 int
 main(int argc, char** argv)
 {
-    int tcpPort = 102;
+    int tcpPort = 8102;
 
     if (argc > 1) {
         tcpPort = atoi(argv[1]);

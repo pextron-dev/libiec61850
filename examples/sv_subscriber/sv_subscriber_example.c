@@ -30,10 +30,6 @@ svUpdateListener (SVSubscriber subscriber, void* parameter, SVSubscriber_ASDU as
     if (svID != NULL)
         printf("  svID=(%s)\n", svID);
 
-    const char* dataSet = SVSubscriber_ASDU_getDatSet(asdu);
-    if (dataSet != NULL)
-        printf("  dataSet=(%s)\n", dataSet);
-
     printf("  smpCnt: %i\n", SVSubscriber_ASDU_getSmpCnt(asdu));
     printf("  confRev: %u\n", SVSubscriber_ASDU_getConfRev(asdu));
 
@@ -66,6 +62,10 @@ main(int argc, char** argv)
         printf("Using interface eth0\n");
         SVReceiver_setInterfaceId(receiver, "eth0");
     }
+
+    char* interface = "8";
+
+    SVReceiver_setInterfaceId(receiver, interface);
 
     /* Create a subscriber listening to SV messages with APPID 4000h */
     SVSubscriber subscriber = SVSubscriber_create(NULL, 0x4000);

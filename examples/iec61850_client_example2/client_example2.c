@@ -57,7 +57,7 @@ main(int argc, char** argv)
     if (argc > 1)
         hostname = argv[1];
     else
-        hostname = "localhost";
+        hostname = "192.168.2.64";
 
     if (argc > 2)
         tcpPort = atoi(argv[2]);

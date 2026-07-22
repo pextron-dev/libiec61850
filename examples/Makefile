@@ -33,6 +33,11 @@ EXAMPLE_DIRS += iec61850_client_example_rcbAsync
 EXAMPLE_DIRS += iec61850_client_example_ClientGooseControl
 EXAMPLE_DIRS += iec61850_client_example_ClientGooseControlAsync
 
+EXAMPLE_DIRS += PEX_IED550_client_example_1
+EXAMPLE_DIRS += PEX_IED550_client_example_2
+EXAMPLE_DIRS += PEX_IED550_client_example_3
+EXAMPLE_DIRS += PEX_IED550_client_example_4
+
 MODEL_DIRS += server_example_simple
 MODEL_DIRS += server_example_basic_io
 MODEL_DIRS += server_example_password_auth

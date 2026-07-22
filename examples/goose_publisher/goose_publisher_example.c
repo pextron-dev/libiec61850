@@ -18,15 +18,15 @@ main(int argc, char **argv)
 {
     char *interface;
 
-    if (argc > 1)
-        interface = argv[1];
-    else
-        interface = "eth0";
+    //if (argc > 1)
+    //    interface = argv[1];
+    //else
+    //    interface = "9";
 
-    printf("Using interface %s\n", interface);
+    //printf("Using interface %s\n", interface);
+    interface = "8";
 
     LinkedList dataSetValues = LinkedList_create();
-
     LinkedList_add(dataSetValues, MmsValue_newIntegerFromInt32(1234));
     LinkedList_add(dataSetValues, MmsValue_newBinaryTime(false));
     LinkedList_add(dataSetValues, MmsValue_newIntegerFromInt32(5678));
@@ -59,10 +59,10 @@ main(int argc, char **argv)
 
         int i = 0;
 
-        for (i = 0; i < 4; i++) {
+        for (i = 0; i < 100; i++) {
             Thread_sleep(1000);
 
-            if (i == 3) {
+            if (i == 70) {
                 /* now change dataset to send an invalid GOOSE message */
                 LinkedList_add(dataSetValues, MmsValue_newBoolean(true));
                 GoosePublisher_publish(publisher, dataSetValues);
