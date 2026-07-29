@@ -47,11 +47,11 @@ set(CONFIG_EXTERNAL_MBEDTLS_INCLUDE_PATH "${CMAKE_CURRENT_LIST_DIR}/third_party/
 # choose the library features which shall be included
 option(CONFIG_IEC61850_CONTROL_SERVICE "Build with support for IEC 61850 control features" ON)
 option(CONFIG_IEC61850_REPORT_SERVICE "Build with support for IEC 61850 reporting services" ON)
-option(CONFIG_IEC61850_LOG_SERVICE "Build with support for IEC 61850 logging services" OFF)
-option(CONFIG_IEC61850_SERVICE_TRACKING "Build with support for IEC 61850 service tracking" OFF)
+option(CONFIG_IEC61850_LOG_SERVICE "Build with support for IEC 61850 logging services" ON)
+option(CONFIG_IEC61850_SERVICE_TRACKING "Build with support for IEC 61850 service tracking" ON)
 option(CONFIG_IEC61850_SETTING_GROUPS "Build with support for IEC 61850 setting group services" ON)
 option(CONFIG_IEC61850_SUPPORT_USER_READ_ACCESS_CONTROL "Allow user provided callback to control read access" ON)
-option(CONFIG_IEC61850_RCB_ALLOW_ONLY_PRECONFIGURED_CLIENT "allow only configured clients (when pre-configured by ClientLN)" OFF)
+option(CONFIG_IEC61850_RCB_ALLOW_ONLY_PRECONFIGURED_CLIENT "allow only configured clients (when pre-configured by ClientLN)" ON)
 option(CONFIG_IEC61850_L2_GOOSE "Build with support for L2 GOOSE (winpcap required on windows)" ON)
 option(CONFIG_IEC61850_L2_SMV "Build with support for L2 SMV (winpcap required on windows)" ON)
 option(CONFIG_IEC61850_R_GOOSE "Build with support for R-GOOSE (mbedtls required)" ON)
@@ -69,7 +69,7 @@ set(CONFIG_IEC61850_SG_RESVTMS 300 CACHE STRING "Configure the maximum number of
 set(CONFIG_REPORTING_DEFAULT_REPORT_BUFFER_SIZE "65536" CACHE STRING "Default buffer size for buffered reports in byte" )
 
 # advanced options
-option(DEBUG "Enable debugging mode (include assertions)" ON)
+option(DEBUG "Enable debugging mode (include assertions)" OFF)
 option(DEBUG_SOCKET "Enable printf debugging for socket layer" OFF)
 option(DEBUG_COTP "Enable COTP printf debugging" OFF)
 option(DEBUG_ISO_SERVER "Enable ISO SERVER printf debugging" OFF)

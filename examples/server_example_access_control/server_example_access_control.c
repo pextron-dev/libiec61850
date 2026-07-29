@@ -225,7 +225,7 @@ directoryAccessHandler(void* parameter, ClientConnection connection, IedServer_D
 int
 main(int argc, char** argv)
 {
-    int tcpPort = 102;
+    int tcpPort = 8102;
 
     if (argc > 1) {
         tcpPort = atoi(argv[1]);
@@ -264,7 +264,7 @@ main(int argc, char** argv)
     IedServerConfig_destroy(config);
 
     /* set the identity values for MMS identify service */
-    IedServer_setServerIdentity(iedServer, "libiec61850.com", "access control example", "1.0.0");
+    //IedServer_setServerIdentity(iedServer, "libiec61850.com", "access control example", "1.0.0");
 
     /* Install handler for operate command */
     IedServer_setControlHandler(iedServer, IEDMODEL_GenericIO_GGIO1_SPCSO1,
@@ -295,7 +295,7 @@ main(int argc, char** argv)
      * This allow to write to simpleIOGenericIO/GGIO1.NamPlt.vendor variable used
      * by iec61850_client_example1.
      */
-    IedServer_setWriteAccessPolicy(iedServer, IEC61850_FC_DC, ACCESS_POLICY_ALLOW);
+    //IedServer_setWriteAccessPolicy(iedServer, IEC61850_FC_DC, ACCESS_POLICY_ALLOW);
 
     /* Install handler to perform access control on datasets */
     IedServer_setDataSetAccessHandler(iedServer, dataSetAccessHandler, NULL);
@@ -307,10 +307,10 @@ main(int argc, char** argv)
      */
     IedServer_setReadAccessHandler(iedServer, readAccessHandler, NULL);
 
-    IedServer_setDirectoryAccessHandler(iedServer, directoryAccessHandler, NULL);
+    //IedServer_setDirectoryAccessHandler(iedServer, directoryAccessHandler, NULL);
 
     /* control visibility of data objects in directory (get-name-list) and variable description (get-variable-access-attributes) services */
-    IedServer_setListObjectsAccessHandler(iedServer, listObjectsAccessHandler, NULL);
+    //IedServer_setListObjectsAccessHandler(iedServer, listObjectsAccessHandler, NULL);
 
     /* MMS server will be instructed to start listening for client connections. */
     IedServer_start(iedServer, tcpPort);

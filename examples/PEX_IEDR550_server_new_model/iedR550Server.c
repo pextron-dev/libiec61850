@@ -16,40 +16,40 @@
 #include <stack_config.h>
 #include <stdio.h>
 
-#define PI 2.14159265f
+#define PI 3.14159265f
 #define DG_TO_RAD(ang) ((ang * PI) / 180)
 #define RAND_OFFSET(range) (-range + ((float)rand() / (float)RAND_MAX) * 2 * range)
 
-float g_src_VA_mag = 0;
-float g_src_VA_ang = 0;
-float g_src_PhA_Pf = 0;
-float g_src_PhA_W = 0;
-float g_src_PhA_VAR = 0;
-float g_src_PhA_VA = 0;
+float g_src_pshA_V_mag = 0;
+float g_src_pshA_V_ang = 0;
+float g_src_PhsA_Pf = 0;
+float g_src_PhsA_W = 0;
+float g_src_PhsA_VAr = 0;
+float g_src_PhsA_VA = 0;
 
-float g_src_VB_mag = 0;
-float g_src_VB_ang = 0;
-float g_src_PhB_Pf = 0;
-float g_src_PhB_W = 0;
-float g_src_PhB_VAR = 0;
-float g_src_PhB_VA = 0;
+float g_src_pshB_mag = 0;
+float g_src_pshB_ang = 0;
+float g_src_PhsB_Pf = 0;
+float g_src_PhsB_W = 0;
+float g_src_PhsB_VAr = 0;
+float g_src_PhsB_VA = 0;
 
-float g_src_VC_mag = 0;
-float g_src_VC_ang = 0;
-float g_src_PhC_Pf = 0;
-float g_src_PhC_W = 0;
-float g_src_PhC_VAR = 0;
-float g_src_PhC_VA = 0;
+float g_src_pshC_mag = 0;
+float g_src_pshC_ang = 0;
+float g_src_PhsC_Pf = 0;
+float g_src_PhsC_W = 0;
+float g_src_PhsC_VAr = 0;
+float g_src_PhsC_VA = 0;
 
 float g_src_VN_mag = 0;
 float g_src_VN_ang = 0;
 
-float g_load_VA_mag = 0;
-float g_load_VA_ang = 0;
-float g_load_VB_mag = 0;
-float g_load_VB_ang = 0;
-float g_load_VC_mag = 0;
-float g_load_VC_ang = 0;
+float g_load_pshA_V_mag = 0;
+float g_load_pshA_V_ang = 0;
+float g_load_pshB_mag = 0;
+float g_load_pshB_ang = 0;
+float g_load_pshC_mag = 0;
+float g_load_pshC_ang = 0;
 float g_load_VN_mag = 0;
 float g_load_VN_ang = 0;
 
@@ -70,9 +70,6 @@ float g_IB_ang = 0;
 
 float g_IC_mag = 0;
 float g_IC_ang = 0;
-
-float g_ID_mag = 0;
-float g_ID_ang = 0;
 
 float g_IN_mag = 0;
 float g_IN_ang = 0;
@@ -116,6 +113,14 @@ checkHandler(void* parameter, MmsValue* ctlVal, bool test, bool interlockCheck, 
     return 0;
 }
 
+static void
+goCbEventHandler(MmsGooseControlBlock goCb, int event, void* parameter)
+{
+    printf("Access to GoCB: %s\n", MmsGooseControlBlock_getName(goCb));
+    printf("         GoEna: %i\n", MmsGooseControlBlock_getGoEna(goCb));
+}
+
+
 bool
 Iec61850_InitServer(void)
 {
@@ -126,8 +131,13 @@ Iec61850_InitServer(void)
 
     IedServer_startThreadless(g_iedServer, IED_SERVER_PORT);
 
+    /* GOOSE Config */
+    IedServer_setGooseInterfaceId(g_iedServer, IED_ETHERNET_INTERFACE_ID);
+    IedServer_setGoCBHandler(g_iedServer, goCbEventHandler, NULL);
+
     if (IedServer_isRunning(g_iedServer))
     {
+        IedServer_enableGoosePublishing(g_iedServer);
         return true;
     }
     else
@@ -141,6 +151,7 @@ Iec61850_DeinitServer(void)
 {
     /* stop MMS server - close TCP server socket and all client sockets */
     IedServer_stopThreadless(g_iedServer);
+    IedServer_stopGoosePublishing(g_iedServer);
     IedServer_destroy(g_iedServer);
     g_iedServer = NULL;
 }
@@ -157,22 +168,21 @@ update_samples(void)
     g_IC_mag = 300 + RAND_OFFSET(0.5);
     g_IC_ang = 270;
 
-    g_src_VA_mag = 127.0f + RAND_OFFSET(2);
-    g_src_VA_ang = 0;
-    g_src_VB_mag = 127.0f + RAND_OFFSET(2);
-    g_src_VB_ang = 120;
-    g_src_VC_mag = 127.0f + RAND_OFFSET(2);
-    g_src_VC_ang = -120;
+    g_src_pshA_V_mag = 127.0f + RAND_OFFSET(2);
+    g_src_pshA_V_ang = 0;
+    g_src_pshB_mag = 127.0f + RAND_OFFSET(2);
+    g_src_pshB_ang = 120;
+    g_src_pshC_mag = 127.0f + RAND_OFFSET(2);
+    g_src_pshC_ang = -120;
 
+    float real_VA = g_src_pshA_V_mag * cosf(DG_TO_RAD(g_load_pshA_V_ang));
+    float img_VA = g_src_pshA_V_mag * sinf(DG_TO_RAD(g_load_pshA_V_ang));
 
-    float real_VA = g_src_VA_mag * cosf(DG_TO_RAD(g_load_VA_ang));
-    float img_VA = g_src_VA_mag * sinf(DG_TO_RAD(g_load_VA_ang));
+    float real_VB = g_src_pshB_mag * cosf(DG_TO_RAD(g_load_pshB_ang));
+    float img_VB = g_src_pshB_mag * sinf(DG_TO_RAD(g_load_pshB_ang));
 
-    float real_VB = g_src_VB_mag * cosf(DG_TO_RAD(g_load_VB_ang));
-    float img_VB = g_src_VB_mag * sinf(DG_TO_RAD(g_load_VB_ang));
-
-    float real_VC = g_src_VC_mag * cosf(DG_TO_RAD(g_load_VC_ang));
-    float img_VC = g_src_VC_mag * sinf(DG_TO_RAD(g_load_VC_ang));
+    float real_VC = g_src_pshC_mag * cosf(DG_TO_RAD(g_load_pshC_ang));
+    float img_VC = g_src_pshC_mag * sinf(DG_TO_RAD(g_load_pshC_ang));
 
     float real_IA = g_IA_mag * cosf(DG_TO_RAD(g_IA_ang));
     float img_IA = g_IA_mag * sinf(DG_TO_RAD(g_IA_ang));
@@ -195,21 +205,21 @@ update_samples(void)
     g_IN_mag = sqrt(pow((real_IA + real_IB + real_IC), 2) + pow((img_IA + img_IB + img_IC), 2));
     g_IN_ang = atan2f((img_IA + img_IB + img_IC), (real_IA + real_IB + real_IC));
     
-    g_src_PhA_Pf = cosf(DG_TO_RAD(g_src_VA_ang - g_IA_ang));
-    g_src_PhB_Pf = cosf(DG_TO_RAD(g_src_VB_ang - g_IB_ang));
-    g_src_PhC_Pf = cosf(DG_TO_RAD(g_src_VB_ang - g_IC_ang));
+    g_src_PhsA_Pf = cosf(DG_TO_RAD(g_src_pshA_V_ang - g_IA_ang));
+    g_src_PhsB_Pf = cosf(DG_TO_RAD(g_src_pshB_ang - g_IB_ang));
+    g_src_PhsC_Pf = cosf(DG_TO_RAD(g_src_pshB_ang - g_IC_ang));
 
-    g_src_PhA_W = g_src_VA_mag * g_IA_mag * g_src_PhA_Pf;
-    g_src_PhA_VAR = g_src_VA_mag * g_IA_mag * sinf(DG_TO_RAD(g_src_VA_ang - g_IA_ang));
-    g_src_PhA_VA = sqrt(pow(g_src_PhA_W, 2) + pow(g_src_PhA_VAR, 2));
+    g_src_PhsA_W = g_src_pshA_V_mag * g_IA_mag * g_src_PhsA_Pf;
+    g_src_PhsA_VAr = g_src_pshA_V_mag * g_IA_mag * sinf(DG_TO_RAD(g_src_pshA_V_ang - g_IA_ang));
+    g_src_PhsA_VA = sqrt(pow(g_src_PhsA_W, 2) + pow(g_src_PhsA_VAr, 2));
 
-    g_src_PhB_W = g_src_VB_mag * g_IB_mag * g_src_PhB_Pf;
-    g_src_PhB_VAR = g_src_VB_mag * g_IB_mag * sinf(DG_TO_RAD(g_src_VB_ang - g_IB_ang));
-    g_src_PhB_VA = sqrt(pow(g_src_PhB_W, 2) + pow(g_src_PhB_VAR, 2));
+    g_src_PhsB_W = g_src_pshB_mag * g_IB_mag * g_src_PhsB_Pf;
+    g_src_PhsB_VAr = g_src_pshB_mag * g_IB_mag * sinf(DG_TO_RAD(g_src_pshB_ang - g_IB_ang));
+    g_src_PhsB_VA = sqrt(pow(g_src_PhsB_W, 2) + pow(g_src_PhsB_VAr, 2));
 
-    g_src_PhC_W = g_src_VC_mag * g_IC_mag * g_src_PhC_Pf;
-    g_src_PhC_VAR = g_src_VC_mag * g_IC_mag * sinf(DG_TO_RAD(g_src_VC_ang - g_IC_ang));
-    g_src_PhC_VA = sqrt(pow(g_src_PhC_W, 2) + pow(g_src_PhC_VAR, 2));
+    g_src_PhsC_W = g_src_pshC_mag * g_IC_mag * g_src_PhsC_Pf;
+    g_src_PhsC_VAr = g_src_pshC_mag * g_IC_mag * sinf(DG_TO_RAD(g_src_pshC_ang - g_IC_ang));
+    g_src_PhsC_VA = sqrt(pow(g_src_PhsC_W, 2) + pow(g_src_PhsC_VAr, 2));
 
     g_VAB_mag = sqrt(pow(real_VA - real_VB, 2) + pow(img_VA - img_VB, 2));
     g_VAB_ang = atan2f((img_VA - img_VB), (real_VA - real_VB));
@@ -220,20 +230,26 @@ update_samples(void)
     g_VCA_mag = sqrt(pow(real_VC - real_VA, 2) + pow(img_VC - img_VA, 2));
     g_VCA_ang = atan2f((img_VC - img_VA), (real_VC - real_VA));
 
-    g_TotW = g_src_PhA_W + g_src_PhB_W + g_src_PhC_W;
-    g_TotVAr = g_src_PhA_VAR + g_src_PhB_VAR + g_src_PhC_VAR;
+    g_TotW = g_src_PhsA_W + g_src_PhsB_W + g_src_PhsC_W;
+    g_TotVAr = g_src_PhsA_VAr + g_src_PhsB_VAr + g_src_PhsC_VAr;
     g_TotVA = sqrt(pow(g_TotW, 2) + pow(g_TotVAr, 2));
 
-    g_TotPF = atan2f(g_TotW, g_TotVAr);
+    g_TotPF = cos(atan2f(g_TotW, g_TotVAr));
 
-    g_load_VA_mag = g_src_VA_mag;
-    g_load_VA_ang = g_src_VA_ang;
-    g_load_VB_mag = g_src_VB_mag;
-    g_load_VB_ang = g_src_VB_ang;
-    g_load_VC_mag = g_src_VC_mag;
-    g_load_VC_ang = g_src_VC_ang;
+    g_load_pshA_V_mag = g_src_pshA_V_mag;
+    g_load_pshA_V_ang = g_src_pshA_V_ang;
+    g_load_pshB_mag = g_src_pshB_mag;
+    g_load_pshB_ang = g_src_pshB_ang;
+    g_load_pshC_mag = g_src_pshC_mag;
+    g_load_pshC_ang = g_src_pshC_ang;
     g_load_VN_ang = g_src_VN_mag;
     g_load_VN_ang = g_src_VN_ang;
+}
+
+static void
+simulate_recloser_operation( )
+{
+
 }
 
 void
@@ -243,6 +259,7 @@ Iec61850_Process(void)
 
     uint64_t timestamp = Hal_getTimeInMs();
     Timestamp iecTimestamp;
+    static uint64_t timerTick_100msMult = 0;
 
     Timestamp_clearFlags(&iecTimestamp);
     Timestamp_setTimeInMilliseconds(&iecTimestamp, timestamp);
@@ -261,43 +278,89 @@ Iec61850_Process(void)
 
     if (timestamp - g_lastTimestamp >= 100)
     {
+        timerTick_100msMult += 100;
+
         IedServer_lockDataModel(g_iedServer);
 
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_PNV_phsA_cVal_mag_f, g_src_VA_mag);
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_PNV_phsA_cVal_ang_f, g_src_VA_ang);
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_PNV_phsB_cVal_mag_f, g_src_VB_mag);
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_PNV_phsB_cVal_ang_f, g_src_VB_ang);
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_PNV_phsC_cVal_mag_f, g_src_VC_mag);
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_PNV_phsC_cVal_ang_f, g_src_VC_ang);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_PPV_phsAB_cVal_mag_f, g_VAB_mag);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_PPV_phsAB_cVal_ang_f, g_VAB_ang);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_PPV_phsBC_cVal_mag_f, g_VBC_mag);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_PPV_phsBC_cVal_ang_f, g_VBC_ang);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_PPV_phsCA_cVal_mag_f, g_VCA_mag);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_PPV_phsCA_cVal_ang_f, g_VCA_ang);
 
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_PNV_phsA_cVal_mag_f, g_load_VA_mag);
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_PNV_phsA_cVal_ang_f, g_load_VA_ang);
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_PNV_phsB_cVal_mag_f, g_load_VB_mag);
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_PNV_phsB_cVal_ang_f, g_load_VB_ang);
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_PNV_phsC_cVal_mag_f, g_load_VC_mag);
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_PNV_phsC_cVal_ang_f, g_load_VC_ang);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_Hz_mag_f, g_Hz_mag);
 
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_PPV_phsAB_cVal_mag_f, g_VAB_mag);
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_PPV_phsAB_cVal_ang_f, g_VAB_ang);
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_PPV_phsBC_cVal_mag_f, g_VBC_mag);
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_PPV_phsBC_cVal_ang_f, g_VBC_ang);
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_PPV_phsCA_cVal_mag_f, g_VCA_mag);
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_PPV_phsCA_cVal_ang_f, g_VCA_ang);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_PNV_phsA_cVal_mag_f, g_src_pshA_V_mag);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_PNV_phsA_cVal_ang_f, g_src_pshA_V_ang);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_A_phsA_cVal_mag_f, g_IA_mag);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_A_phsA_cVal_ang_f, g_IA_ang);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_PF_phsA_cVal_mag_f, g_src_PhsA_Pf);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_W_phsA_cVal_mag_f, g_src_PhsA_W);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_VAr_phsA_cVal_mag_f, g_src_PhsA_VAr);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_VA_phsA_cVal_mag_f, g_src_PhsA_VA);
 
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_Hz_mag_f, g_Hz_mag);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_PNV_phsB_cVal_mag_f, g_src_pshB_mag);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_PNV_phsB_cVal_ang_f, g_src_pshB_ang);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_A_phsB_cVal_mag_f, g_IB_mag);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_A_phsB_cVal_ang_f, g_IB_ang);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_PF_phsB_cVal_mag_f, g_src_PhsB_Pf);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_W_phsB_cVal_mag_f, g_src_PhsB_W);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_VAr_phsB_cVal_mag_f, g_src_PhsB_VAr);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_VA_phsB_cVal_mag_f, g_src_PhsB_VA);
 
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_A_phsA_cVal_mag_f, g_IA_mag);
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_A_phsA_cVal_ang_f, g_IA_ang);
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_A_phsB_cVal_mag_f, g_IB_mag);
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_A_phsB_cVal_ang_f, g_IB_ang);
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_A_phsC_cVal_mag_f, g_IC_mag);
-        //IedServer_updateFloatAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_A_phsC_cVal_ang_f, g_IC_ang);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_PNV_phsC_cVal_mag_f, g_src_pshC_mag);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_PNV_phsC_cVal_ang_f, g_src_pshC_ang);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_A_phsC_cVal_mag_f, g_IC_mag);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_A_phsC_cVal_ang_f, g_IC_ang);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_PF_phsC_cVal_mag_f, g_src_PhsC_Pf);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_W_phsC_cVal_mag_f, g_src_PhsC_W);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_VAr_phsC_cVal_mag_f, g_src_PhsC_VAr);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_VA_phsC_cVal_mag_f, g_src_PhsC_VA);
 
-        //IedServer_updateTimestampAttributeValue(g_iedServer, R550_SYS_SRCMMXU1_PNV_phsC_cVal_mag_f, &iecTimestamp);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_PNV_neut_cVal_mag_f, g_src_VN_mag);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_PNV_neut_cVal_ang_f, g_src_VN_ang);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_A_neut_cVal_mag_f, g_IN_mag);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_A_neut_cVal_ang_f, g_IN_ang);
+
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_TotW_mag_f, g_TotW);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_TotVAr_mag_f, g_TotVAr);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_TotVA_mag_f, g_TotVA);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_TotPF_mag_f, g_TotPF);
+
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_Hz_mag_f, g_Hz_mag);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PPV_phsAB_cVal_mag_f, g_VAB_mag);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PPV_phsAB_cVal_ang_f, g_VAB_ang);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PPV_phsBC_cVal_mag_f, g_VBC_mag);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PPV_phsBC_cVal_ang_f, g_VBC_ang);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PPV_phsCA_cVal_mag_f, g_VCA_mag);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PPV_phsCA_cVal_ang_f, g_VCA_ang);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PNV_phsA_cVal_mag_f, g_load_pshA_V_mag);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PNV_phsA_cVal_ang_f, g_load_pshA_V_ang);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PNV_phsB_cVal_mag_f, g_load_pshB_mag);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PNV_phsB_cVal_ang_f, g_load_pshB_ang);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PNV_phsC_cVal_mag_f, g_load_pshC_mag);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PNV_phsC_cVal_ang_f, g_load_pshC_ang);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PNV_neut_cVal_mag_f, g_src_VN_mag);
+        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PNV_neut_cVal_ang_f, g_src_VN_ang);
 
         IedServer_unlockDataModel(g_iedServer);
 
         g_lastTimestamp = timestamp;
+    }
+
+    if (timerTick_100msMult >= 1000)
+    {
+        timerTick_100msMult = 0;
+        static int switchPos = 0;
+
+        switchPos ^= 0b11;
+
+        IedServer_lockDataModel(g_iedServer);
+
+        IedServer_updateBitStringAttributeValue(g_iedServer, IEDMODEL_SYS_XCBR1_Pos_stVal, switchPos);
+
+        IedServer_unlockDataModel(g_iedServer);
     }
 }
 

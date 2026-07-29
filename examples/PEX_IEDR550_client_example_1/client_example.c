@@ -4,42 +4,22 @@
  * Unbuffered report IED550 example.
  */
 
+#include "goose_receiver.h"
+#include "goose_subscriber.h"
 #include "iec61850_client.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "config.h"
 #include "hal_thread.h"
+#include "string.h"
 
-const char* MMUX1_DATASET_ENTRIES[16] = {
-  "MMXU1$MX$TotPF$mag",
-  "MMXU1$MX$TotVA$mag",
-  "MMXU1$MX$TotVAr$mag",
-  "MMXU1$MX$TotW$mag",
-  "MMXU1$MX$Hz$mag",
-  "MMXU1$MX$PhV$phsA$cVal",
-  "MMXU1$MX$PhV$phsB$cVal",
-  "MMXU1$MX$PhV$phsC$cVal",
-  "MMXU1$MX$A$phsA$cVal",
-  "MMXU1$MX$A$phsB$cVal",
-  "MMXU1$MX$A$phsC$cVal",
-  "MMXU1$MX$A$neut$cVal",
-  "MMXU1$MX$A$res$cVal",
-  "MMXU2$MX$PhV$phsA$cVal",
-  "MMXU2$MX$PhV$phsB$cVal",
-  "MMXU2$MX$PhV$phsC$cVal"
-};
-
-const char* MMUX2_DATASET_ENTRIES[3] = {
-  "MMXU2$MX$PhV$phsA$cVal",
-  "MMXU2$MX$PhV$phsB$cVal",
-  "MMXU2$MX$PhV$phsC$cVal"
-};
-
-const char* XCBR1_DATASET_ENTRIES[1] = {
-  "XCBR1$ST$Pos$stVal"
-};
+const char* DS_MEAS_SCADA_FIRST_15_ENTRIES[15] = {
+    "LOADMMXU1$MX$PPV$phsAB$cVal$mag$f", "LOADMMXU1$MX$PPV$phsAB$cVal$ang$f", "LOADMMXU1$MX$PPV$phsBC$cVal$mag$f",
+    "LOADMMXU1$MX$PPV$phsBC$cVal$ang$f", "LOADMMXU1$MX$PPV$phsCA$cVal$mag$f", "LOADMMXU1$MX$PPV$phsCA$cVal$ang$f",
+    "LOADMMXU1$MX$PNV$phsA$cVal$mag$f",  "LOADMMXU1$MX$PNV$phsA$cVal$ang$f",  "LOADMMXU1$MX$PNV$phsB$cVal$mag$f",
+    "LOADMMXU1$MX$PNV$phsB$cVal$ang$f",  "LOADMMXU1$MX$PNV$phsC$cVal$mag$f",  "LOADMMXU1$MX$PNV$phsC$cVal$ang$f",
+    "LOADMMXU1$MX$PNV$neut$cVal$mag$f",  "LOADMMXU1$MX$PNV$neut$cVal$ang$f",  "LOADMMXU1$MX$Hz$mag$f"};
 
 static MmsValue*
 unwrapMmsValue(MmsValue* value)
@@ -57,25 +37,41 @@ unwrapMmsValue(MmsValue* value)
     return value;
 }
 
+static void
+gooseListener(GooseSubscriber subscriber, void* parameter)
+{
+    printf("GOOSE event:\n");
+    printf("  stNum: %u sqNum: %u\n", GooseSubscriber_getStNum(subscriber), GooseSubscriber_getSqNum(subscriber));
+    printf("  timeToLive: %u\n", GooseSubscriber_getTimeAllowedToLive(subscriber));
+
+    uint64_t timestamp = GooseSubscriber_getTimestamp(subscriber);
+
+    printf("  timestamp: %u.%u\n", (uint32_t)(timestamp / 1000), (uint32_t)(timestamp % 1000));
+    printf("  message is %s\n", GooseSubscriber_isValid(subscriber) ? "valid" : "INVALID");
+
+    MmsValue* values = GooseSubscriber_getDataSetValues(subscriber);
+
+    char buffer[1024];
+
+    MmsValue_printToBuffer(values, buffer, 1024);
+
+    printf("  allData: %s\n", buffer);
+}
+
 void
-reportCallbackFunction(void* parameter, ClientReport report)
+printDsElements(MmsValue* dataSetValues, const char* dataSetName, uint16_t nDataValues)
 {
     char buffer_rx[2048] = "";
     const char** DATASET_ENTRIES = NULL;
     int ret = 0;
     int offset = 0;
-    MmsValue* dataSetValues = ClientReport_getDataSetValues(report);
-    const char* dataSetName = ClientReport_getDataSetName(report);
-    uint16_t n_data_values = MmsValue_getArraySize(dataSetValues);
 
-    printf("received report for %s\n", ClientReport_getRcbReference(report));
+    if (strcmp(dataSetName, "IEDR550SYS/LLN0$DS_MEAS_SCADA") == 0)
+        DATASET_ENTRIES = DS_MEAS_SCADA_FIRST_15_ENTRIES;
+    else
+        return;
 
-    if (strcmp(dataSetName, "S640/LLN0$MMXU1_DataSet") == 0)
-        DATASET_ENTRIES = MMUX1_DATASET_ENTRIES;
-    else if (strcmp(dataSetName, "S640/LLN0$MMXU2_DataSet") == 0)
-        DATASET_ENTRIES = MMUX2_DATASET_ENTRIES;
-
-    for (int i = 0; i < n_data_values; i++)
+    for (int i = 0; i < nDataValues; i++)
     {
 
         MmsValue* element = MmsValue_getElement(dataSetValues, i);
@@ -126,56 +122,50 @@ reportCallbackFunction(void* parameter, ClientReport report)
     offset = 0;
 }
 
+void
+reportCallbackFunction(void* parameter, ClientReport report)
+{
+    char buffer_rx[2048] = "";
+    const char** DATASET_ENTRIES = NULL;
+    int ret = 0;
+    int offset = 0;
+    MmsValue* dataSetValues = ClientReport_getDataSetValues(report);
+    const char* dataSetName = ClientReport_getDataSetName(report);
+    uint16_t nDataValues = MmsValue_getArraySize(dataSetValues);
+
+    printf("received report for %s\n", ClientReport_getRcbReference(report));
+    printDsElements(dataSetValues, dataSetName, 15);
+}
+
 int
 main(int argc, char** argv)
 {
 
-    char* hostname = NULL;
-    int tcpPort = 102;
-    const char* localIp = NULL;
-    int localTcpPort = -1;
-
-    if (argc > 1)
-        hostname = argv[1];
-    else
-        hostname = IED_SERVER_IP;
-
-    if (argc > 2)
-        tcpPort = atoi(argv[2]);
-
-    if (argc > 3)
-        localIp = argv[3];
-
-    if (argc > 4)
-        localTcpPort = atoi(argv[4]);
+    char* hostname = IED_SERVER_IP;
+    int tcpPort = IED_SERVER_PORT;
 
     IedClientError error;
 
     IedConnection con = IedConnection_create();
-
-    /* Optional bind to local IP address/interface */
-    if (localIp)
-    {
-        IedConnection_setLocalAddress(con, localIp, localTcpPort);
-        printf("Bound to Local Address: %s:%i\n", localIp, localTcpPort);
-    }
-
     IedConnection_connect(con, &error, hostname, tcpPort);
-    printf("Connecting to %s:%i\n", hostname, tcpPort);
+
+    printf("Connecting to IED R550 on %s:%i\n", hostname, tcpPort);
 
     if (error == IED_ERROR_OK)
     {
-        printf("Connected\n");
+        printf("Connected.\n");
 
         /* read an analog measurement value from server */
-        MmsValue* value = IedConnection_readObject(con, &error, "S640/MMXU1.A.phsA.cVal.mag.f", IEC61850_FC_MX);
+        printf("Reading source side V_AB: \n");
+        MmsValue* value =
+            IedConnection_readObject(con, &error, "IEDR550SYS/SRCMMXU1.PPV.phsAB.cVal.mag.f", IEC61850_FC_MX);
 
         if (value != NULL)
         {
             if (MmsValue_getType(value) == MMS_FLOAT)
             {
                 float fval = MmsValue_toFloat(value);
-                printf("read float value: %f\n", fval);
+                printf("Read float value: %f\n", fval);
             }
             else if (MmsValue_getType(value) == MMS_DATA_ACCESS_ERROR)
             {
@@ -186,39 +176,51 @@ main(int argc, char** argv)
         }
 
         /* read data set */
-        ClientDataSet clientDataSet = IedConnection_readDataSetValues(con, &error, "S640/LLN0.MMXU1_DataSet", NULL);
-
+        printf("Reading DS_MEAS_SCADA dataset...\n");
+        ClientDataSet clientDataSet =
+            IedConnection_readDataSetValues(con, &error, "IEDR550SYS/LLN0.DS_MEAS_SCADA", NULL);
         if (clientDataSet == NULL)
         {
-            printf("failed to read dataset\n");
+            printf("Failed to read dataset\n");
+        }
+        else
+        {
+            MmsValue* dataSetValues = ClientDataSet_getValues(clientDataSet);
+            char* dataSetName = ClientDataSet_getReference(clientDataSet);
+
+            printDsElements(dataSetValues, dataSetName, 15);
         }
 
         /* Read RCB values */
-        ClientReportControlBlock rcb_1 = IedConnection_getRCBValues(con, &error, "S640/LLN0.RP.ucrbMMXU1", NULL);
+        printf("Reading brcbMeasScada configuration...\n");
+        ClientReportControlBlock rcb_1 =
+            IedConnection_getRCBValues(con, &error, "IEDR550SYS/LLN0.BR.brcbMeasScada01", NULL);
 
         if (rcb_1)
         {
             bool rptEna_1 = ClientReportControlBlock_getRptEna(rcb_1);
 
-            printf("RptEna_1 = %i\n", rptEna_1);
+            printf("Report enabled = %i\n", rptEna_1);
 
             /* Install handler for reports */
-            IedConnection_installReportHandler(con, "S640/LLN0.RP.ucrbMMXU1", ClientReportControlBlock_getRptId(rcb_1),
-                                               reportCallbackFunction, NULL);
+            IedConnection_installReportHandler(con, "IEDR550SYS/LLN0.BR.brcbMeasScada01",
+                                               ClientReportControlBlock_getRptId(rcb_1), reportCallbackFunction, NULL);
 
             /* Set trigger options and enable report */
-            ClientReportControlBlock_setTrgOps(rcb_1, TRG_OPT_DATA_UPDATE | TRG_OPT_INTEGRITY | TRG_OPT_GI);
+            printf("Enabling report brcbMeasScada...\n");
+            ClientReportControlBlock_setTrgOps(rcb_1, TRG_OPT_INTEGRITY | TRG_OPT_GI);
             ClientReportControlBlock_setRptEna(rcb_1, true);
             ClientReportControlBlock_setIntgPd(rcb_1, 1000);
             IedConnection_setRCBValues(con, &error, rcb_1,
                                        RCB_ELEMENT_RPT_ENA | RCB_ELEMENT_TRG_OPS | RCB_ELEMENT_INTG_PD, true);
 
             if (error != IED_ERROR_OK)
-                printf("report 1 activation failed (code: %i)\n", error);
+                printf("Failed to active report brcbMeasScada (code: %i)\n", error);
 
             Thread_sleep(1000);
 
             /* trigger GI report */
+            printf("Triggering a GI report...\n");
             ClientReportControlBlock_setGI(rcb_1, true);
             IedConnection_setRCBValues(con, &error, rcb_1, RCB_ELEMENT_GI, true);
 
@@ -228,16 +230,38 @@ main(int argc, char** argv)
             Thread_sleep(10000);
 
             /* disable reporting */
+            printf("Disabling report brcbMeasScada...\n");
             ClientReportControlBlock_setRptEna(rcb_1, false);
             IedConnection_setRCBValues(con, &error, rcb_1, RCB_ELEMENT_RPT_ENA, true);
 
             if (error != IED_ERROR_OK)
-                printf("disable reporting failed (code: %i)\n", error);
-
-            ClientDataSet_destroy(clientDataSet);
+                printf("Disable reporting failed (code: %i)\n", error);
 
             ClientReportControlBlock_destroy(rcb_1);
         }
+        
+        ClientDataSet_destroy(clientDataSet);
+
+        /* GOOSE Testing */
+        GooseReceiver receiver = GooseReceiver_create();
+
+        GooseReceiver_setInterfaceId(receiver, IED_ETHERNET_INTERFACE_ID);
+
+        GooseSubscriber subscriber = GooseSubscriber_create("IEDR550SYS/LLN0$GO$gcbSwitchOper", NULL);
+
+        uint8_t dstMac[6] = {0x01, 0x0c, 0xcd, 0x01, 0x00, 0x01};
+        GooseSubscriber_setAppId(subscriber, 1000);
+
+        GooseSubscriber_setListener(subscriber, gooseListener, NULL);
+
+        GooseReceiver_addSubscriber(receiver, subscriber);
+
+        GooseReceiver_start(receiver);
+
+        Thread_sleep(100000);
+
+        GooseReceiver_stop(receiver);
+        GooseReceiver_destroy(receiver);
 
     close_connection:
 
@@ -246,7 +270,6 @@ main(int argc, char** argv)
     else
     {
         printf("Failed to connect to %s:%i\n", hostname, tcpPort);
-        Thread_sleep(60000);
     }
 
     IedConnection_destroy(con);

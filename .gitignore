@@ -5,3 +5,5 @@ third_party/winpcap
 third_party/sqlite
 **/obj/
 .vs
+
+tools/
