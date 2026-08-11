@@ -6,6 +6,7 @@
  */
 
 #include "config.h"
+#include "goose_receiver.h"
 #include "goose_subscriber.h"
 #include "hal_thread.h"
 #include "iec61850_server.h"
@@ -15,10 +16,14 @@
 #include <signal.h>
 #include <stack_config.h>
 #include <stdio.h>
+#include "sv_publisher.h"
+#include "sv_subscriber.h"
 
 #define PI 3.14159265f
 #define DG_TO_RAD(ang) ((ang * PI) / 180)
 #define RAND_OFFSET(range) (-range + ((float)rand() / (float)RAND_MAX) * 2 * range)
+
+const char* DS_SWITCH_OPER[4] = {"CILO1$ST$EnaOpn$stVal", "CILO1$ST$EnaCls$stVal", "XCBR1$ST$Loc$stVal", "XCBR1$ST$Pos$stVal"};
 
 float g_src_pshA_V_mag = 0;
 float g_src_pshA_V_ang = 0;
@@ -85,6 +90,13 @@ extern IedModel iedModel;
 IedServer g_iedServer = NULL;
 GooseSubscriber g_subscriber = NULL;
 uint64_t g_lastTimestamp;
+GooseReceiver g_gooseReceiver = NULL;
+
+SVPublisher g_svPublisher = NULL;
+SVPublisher_ASDU g_asdu1 = NULL;
+static float g_float1;
+static float g_float2;
+static float g_ts1;
 
 static int running = 0;
 
@@ -94,55 +106,112 @@ sigint_handler(int signalId)
     running = 0;
 }
 
-static bool
-activeSgChangedHandler(void* parameter, SettingGroupControlBlock* sgcb, uint8_t newActSg, ClientConnection connection)
+static MmsValue*
+unwrapMmsValue(MmsValue* value)
 {
-    (void)parameter;
-    (void)sgcb;
-    (void)newActSg;
-    (void)connection;
+    while (value != NULL && MmsValue_getType(value) == MMS_STRUCTURE)
+    {
+        int size = MmsValue_getArraySize(value);
+
+        if (size <= 0)
+            return NULL;
+
+        value = MmsValue_getElement(value, 0);
+    }
+
+    return value;
 }
 
-static bool
-editSgChangedHandler(void* parameter, SettingGroupControlBlock* sgcb, uint8_t newEditSg, ClientConnection connection)
+void
+printDsElements(MmsValue* dataSetValues, const char* dataSetName, uint16_t nDataValues)
 {
-    /*
-     * Handler: Edit Setting Group Changed
-     * Trigger: Client writes to 'EditSG'.
-     * Purpose: Selects a group for reading or modification without affecting the active logic.
-     * Action:  Must load the stored parameters of the target group into the
-     * MMS variables (edit buffer) for client access.
-     */
+    char buffer_rx[2048] = "";
+    const char** DATASET_ENTRIES = NULL;
+    int ret = 0;
+    int offset = 0;
 
-    (void)parameter;
-    (void)sgcb;
-    (void)newEditSg;
-    (void)connection;
+    if (strcmp(dataSetName, "IEDR550SYS/LLN0$DS_SWITCH_OPER") == 0)
+        DATASET_ENTRIES = DS_SWITCH_OPER;
+    else
+        return;
 
-    return true;
+    for (int i = 0; i < nDataValues; i++)
+    {
+
+        MmsValue* element = MmsValue_getElement(dataSetValues, i);
+        MmsValue* finalValue = unwrapMmsValue(element);
+
+        switch (MmsValue_getType(finalValue))
+        {
+        case MMS_BOOLEAN: {
+            bool value = MmsValue_getBoolean(finalValue);
+
+            ret = snprintf(buffer_rx + offset, (sizeof(buffer_rx) - offset), "%s: %d\n", DATASET_ENTRIES[i],
+                           value ? 1 : 0);
+            break;
+        }
+
+        case MMS_BIT_STRING: {
+            uint32_t value = MmsValue_getBitStringAsInteger(finalValue);
+
+            ret = snprintf(buffer_rx + offset, (sizeof(buffer_rx) - offset), "%s: %u\n", DATASET_ENTRIES[i], value);
+            break;
+        }
+
+        case MMS_INTEGER: {
+            int32_t value = MmsValue_toInt32(finalValue);
+
+            ret = snprintf(buffer_rx + offset, (sizeof(buffer_rx) - offset), "%s: %di\n", DATASET_ENTRIES[i], value);
+            break;
+        }
+
+        case MMS_FLOAT: {
+            float value = MmsValue_toFloat(finalValue);
+            ret = snprintf(buffer_rx + offset, (sizeof(buffer_rx) - offset), "%s: %0.2f\n", DATASET_ENTRIES[i], value);
+        };
+        break;
+
+        default:
+            break;
+        }
+
+        if (ret > 0 && ret < (sizeof(buffer_rx) - offset))
+        {
+            offset += ret; // Update offset for the next write
+        }
+    }
+
+    printf("%s", buffer_rx);
+    memset(buffer_rx, 0, sizeof(buffer_rx));
+    offset = 0;
 }
 
 static void
-editSgConfirmedHandler(void* parameter, SettingGroupControlBlock* sgcb, uint8_t editSg)
-{
-    (void)parameter;
-    (void)sgcb;
-    (void)editSg;
-}
-
-void
-controlHandler(void* parameter, MmsValue* value, bool test)
-{
-    (void)parameter;
-    (void)value;
-    (void)test;
-}
-
-void
 gooseListener(GooseSubscriber subscriber, void* parameter)
 {
-    (void)subscriber;
-    (void)parameter;
+    printf("GOOSE event:\n");
+    printf("  stNum: %u sqNum: %u\n", GooseSubscriber_getStNum(subscriber), GooseSubscriber_getSqNum(subscriber));
+    printf("  timeToLive: %u\n", GooseSubscriber_getTimeAllowedToLive(subscriber));
+
+    uint64_t timestamp = GooseSubscriber_getTimestamp(subscriber);
+
+    printf("  timestamp: %u.%u\n", (uint32_t)(timestamp / 1000), (uint32_t)(timestamp % 1000));
+    printf("  message is %s\n", GooseSubscriber_isValid(subscriber) ? "valid" : "INVALID");
+
+    MmsValue* values = GooseSubscriber_getDataSetValues(subscriber);
+    char* dataSetName = GooseSubscriber_getDataSet(subscriber);
+
+    uint16_t nDataValues = MmsValue_getArraySize(values);
+
+    char buffer[1024];
+
+    MmsValue_printToBuffer(values, buffer, 1024);
+
+    printf("\n\nDataset Values:\n\n");
+    printDsElements(values, dataSetName, nDataValues);
+
+
+    printf("  allData: %s\n", buffer);
 }
 
 int
@@ -164,6 +233,38 @@ goCbEventHandler(MmsGooseControlBlock goCb, int event, void* parameter)
     printf("         GoEna: %i\n", MmsGooseControlBlock_getGoEna(goCb));
 }
 
+static bool
+Iec61850_InitGoose()
+{
+    g_gooseReceiver = GooseReceiver_create();
+    GooseReceiver_setInterfaceId(g_gooseReceiver, IED_ETHERNET_INTERFACE_ID);
+    GooseSubscriber subscriber = GooseSubscriber_create("IEDR550SYS/LLN0$GO$gcbSwitchOper", NULL);
+    uint8_t dstMac[6] = {0x01, 0x0c, 0xcd, 0x01, 0x01, 0x00};
+    GooseSubscriber_setDstMac(subscriber, dstMac);
+    GooseSubscriber_setAppId(subscriber, 0x1001);
+    GooseSubscriber_setListener(subscriber, gooseListener, NULL);
+    GooseReceiver_addSubscriber(g_gooseReceiver, subscriber);
+    GooseReceiver_start(g_gooseReceiver);
+    IedServer_enableGoosePublishing(g_iedServer);
+    return true;
+}
+
+ static bool
+ Iec61850_InitSv()
+{
+     g_svPublisher = SVPublisher_create(NULL, IED_ETHERNET_INTERFACE_ID);
+
+     g_asdu1 = SVPublisher_addASDU(g_svPublisher, "svpub1", NULL, 1);
+
+     g_float2 = SVPublisher_ASDU_addFLOAT(g_asdu1);
+     g_float1 = SVPublisher_ASDU_addFLOAT(g_asdu1);
+     g_ts1 = SVPublisher_ASDU_addTimestamp(g_asdu1);
+
+     SVPublisher_setupComplete(g_svPublisher);
+
+     return true;
+ }
+
 bool
 Iec61850_InitServer(void)
 {
@@ -180,7 +281,8 @@ Iec61850_InitServer(void)
 
     if (IedServer_isRunning(g_iedServer))
     {
-        IedServer_enableGoosePublishing(g_iedServer);
+        Iec61850_InitGoose();
+        Iec61850_InitSv();
         return true;
     }
     else
@@ -365,39 +467,27 @@ Iec61850_Process(void)
         IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_TotVA_mag_f, g_TotVA);
         IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_SRCMMXU1_TotPF_mag_f, g_TotPF);
 
-        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_Hz_mag_f, g_Hz_mag);
-        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PPV_phsAB_cVal_mag_f, g_VAB_mag);
-        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PPV_phsAB_cVal_ang_f, g_VAB_ang);
-        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PPV_phsBC_cVal_mag_f, g_VBC_mag);
-        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PPV_phsBC_cVal_ang_f, g_VBC_ang);
-        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PPV_phsCA_cVal_mag_f, g_VCA_mag);
-        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PPV_phsCA_cVal_ang_f, g_VCA_ang);
-        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PNV_phsA_cVal_mag_f, g_load_pshA_V_mag);
-        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PNV_phsA_cVal_ang_f, g_load_pshA_V_ang);
-        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PNV_phsB_cVal_mag_f, g_load_pshB_mag);
-        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PNV_phsB_cVal_ang_f, g_load_pshB_ang);
-        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PNV_phsC_cVal_mag_f, g_load_pshC_mag);
-        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PNV_phsC_cVal_ang_f, g_load_pshC_ang);
-        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PNV_neut_cVal_mag_f, g_src_VN_mag);
-        IedServer_updateFloatAttributeValue(g_iedServer, IEDMODEL_SYS_LOADMMXU1_PNV_neut_cVal_ang_f, g_src_VN_ang);
-
         IedServer_unlockDataModel(g_iedServer);
 
         g_lastTimestamp = timestamp;
-    }
 
-    if (timerTick_100msMult >= 2000)
-    {
-        timerTick_100msMult = 0;
-        static int switchPos = 0;
+        if (g_svPublisher)
+        {
+            Timestamp ts;
+            Timestamp_clearFlags(&ts);
+            Timestamp_setTimeInMilliseconds(&ts, Hal_getTimeInMs());
 
-        switchPos ^= 0b11;
+            static float fVal1 = 1234.5678f;
+            static float fVal2 = 0.12345f;
 
-        IedServer_lockDataModel(g_iedServer);
+            SVPublisher_ASDU_setFLOAT(g_asdu1, g_float1, fVal1++);
+            SVPublisher_ASDU_setFLOAT(g_asdu1, g_float2, fVal2++);
+            SVPublisher_ASDU_setTimestamp(g_asdu1, g_ts1, ts);
 
-        IedServer_updateBitStringAttributeValue(g_iedServer, IEDMODEL_SYS_XCBR1_Pos_stVal, switchPos);
+            SVPublisher_ASDU_increaseSmpCnt(g_asdu1);
 
-        IedServer_unlockDataModel(g_iedServer);
+            SVPublisher_publish(g_svPublisher);
+        }
     }
 }
 

@@ -141,8 +141,11 @@ int
 main(int argc, char** argv)
 {
 
-    char* hostname = IED_SERVER_IP;
-    int tcpPort = IED_SERVER_PORT;
+    //char* hostname = IED_SERVER_IP;
+    //int tcpPort = IED_SERVER_PORT;
+    // 
+     char* hostname = "192.168.2.64";
+     int tcpPort = 102;
 
     IedClientError error;
 
@@ -194,7 +197,7 @@ main(int argc, char** argv)
         /* Read RCB values */
         printf("Reading brcbMeasScada configuration...\n");
         ClientReportControlBlock rcb_1 =
-            IedConnection_getRCBValues(con, &error, "IEDR550SYS/LLN0.BR.brcbMeasScada01", NULL);
+            IedConnection_getRCBValues(con, &error, "IEDR550SYS/LLN0.RP.urcbMeasScada01", NULL);
 
         if (rcb_1)
         {
@@ -203,8 +206,14 @@ main(int argc, char** argv)
             printf("Report enabled = %i\n", rptEna_1);
 
             /* Install handler for reports */
-            IedConnection_installReportHandler(con, "IEDR550SYS/LLN0.BR.brcbMeasScada01",
+            IedConnection_installReportHandler(con, "IEDR550SYS/LLN0.RP.urcbMeasScada01",
                                                ClientReportControlBlock_getRptId(rcb_1), reportCallbackFunction, NULL);
+
+            /* trigger GI report */
+            printf("Triggering a GI report...\n");
+            ClientReportControlBlock_setGI(rcb_1, true);
+            IedConnection_setRCBValues(con, &error, rcb_1, RCB_ELEMENT_GI, true);
+
 
             /* Set trigger options and enable report */
             printf("Enabling report brcbMeasScada...\n");
@@ -218,11 +227,6 @@ main(int argc, char** argv)
                 printf("Failed to active report brcbMeasScada (code: %i)\n", error);
 
             Thread_sleep(1000);
-
-            /* trigger GI report */
-            printf("Triggering a GI report...\n");
-            ClientReportControlBlock_setGI(rcb_1, true);
-            IedConnection_setRCBValues(con, &error, rcb_1, RCB_ELEMENT_GI, true);
 
             if (error != IED_ERROR_OK)
                 printf("Error triggering a GI report (code: %i)\n", error);
@@ -250,7 +254,7 @@ main(int argc, char** argv)
         GooseSubscriber subscriber = GooseSubscriber_create("IEDR550SYS/LLN0$GO$gcbSwitchOper", NULL);
 
         uint8_t dstMac[6] = {0x01, 0x0c, 0xcd, 0x01, 0x00, 0x01};
-        GooseSubscriber_setAppId(subscriber, 1000);
+        GooseSubscriber_setAppId(subscriber, 0x1001);
 
         GooseSubscriber_setListener(subscriber, gooseListener, NULL);
 
@@ -258,7 +262,43 @@ main(int argc, char** argv)
 
         GooseReceiver_start(receiver);
 
-        Thread_sleep(100000);
+        Thread_sleep(30000);
+
+        /*Read GoCB Values*/
+        ClientGooseControlBlock goCB = IedConnection_getGoCBValues(con, &error, "IEDR550SYS/LLN0.gcbSwitchOper", NULL);
+
+        bool GoEna = ClientGooseControlBlock_getGoEna(goCB);
+        printf("GoEna Value: %d\n", GoEna);
+
+        const char* id = ClientGooseControlBlock_getGoID(goCB);
+        printf("GoID Value: %s\n", id);
+
+        const char* datset = ClientGooseControlBlock_getDatSet(goCB);
+        printf("GoDatset Value: %s\n", datset);
+
+
+        if (GoEna)
+        {
+            ClientGooseControlBlock_setGoEna(goCB, false); 
+            IedConnection_setGoCBValues(con, &error, goCB, GOCB_ELEMENT_GO_ENA, true);
+        }
+
+        /*Read GoCB Values*/
+        goCB = IedConnection_getGoCBValues(con, &error, "IEDR550SYS/LLN0.gcbSwitchOper", NULL);
+
+        Thread_sleep(5000);
+
+        GoEna = ClientGooseControlBlock_getGoEna(goCB);
+        printf("GoEna Value: %d\n", GoEna);
+
+        if (!GoEna)
+        {
+            ClientGooseControlBlock_setGoEna(goCB, true);
+            IedConnection_setGoCBValues(con, &error, goCB, GOCB_ELEMENT_GO_ENA, true);
+        }
+
+        GoEna = ClientGooseControlBlock_getGoEna(goCB);
+        printf("GoEna Value: %d\n", GoEna);
 
         GooseReceiver_stop(receiver);
         GooseReceiver_destroy(receiver);

@@ -246,12 +246,6 @@ update_samples(void)
     g_load_VN_ang = g_src_VN_ang;
 }
 
-static void
-simulate_recloser_operation( )
-{
-
-}
-
 void
 Iec61850_Process(void)
 {
@@ -349,11 +343,11 @@ Iec61850_Process(void)
         g_lastTimestamp = timestamp;
     }
 
-    if (timerTick_100msMult >= 1000)
+    if (timerTick_100msMult >= 20000)
     {
         timerTick_100msMult = 0;
         static int switchPos = 0;
-
+       
         switchPos ^= 0b11;
 
         IedServer_lockDataModel(g_iedServer);
